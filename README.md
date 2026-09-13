@@ -179,7 +179,7 @@ npm run build
 node dist/mcp/server.js
 ```
 
-It exposes one tool, `verify`:
+It exposes two tools, `verify` and `verify-and-fix`:
 
 | Input            | Default | Meaning                                                     |
 | ---------------- | ------- | ----------------------------------------------------------- |
@@ -188,8 +188,10 @@ It exposes one tool, `verify`:
 | `noHistory`      | `false` | Skip recording this run to the local history                |
 
 It returns `{ changeSet, risk, verification, verdict }` — the same shape
-as `--json`. This closes the agent loop: `generate → verify → fix →
-verify again`.
+as `--json`. `verify-and-fix` adds `suggestions` (one fix suggestion per
+finding, same order; `autoFixable` entries carry a command the agent may
+run itself — the server never edits code). This closes the agent loop:
+`generate → verify → fix → verify again`.
 
 ## Install
 
