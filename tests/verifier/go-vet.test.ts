@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { GoVetVerifier, isGoFile } from "../../src/verifier/go-vet.js";
 import type { ChangeSet } from "../../src/core/types/index.js";
+import { hideExternalTools } from "../helpers/hide-tools.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -124,13 +125,17 @@ describe("GoVetVerifier", () => {
       { path: "main.go", changeType: "modified" },
     ]);
 
-    const result = await verifier.run({
-      repositoryPath: repo,
-      changeSet,
-    });
+    const restorePath = hideExternalTools();
+    try {
+      const result = await verifier.run({
+        repositoryPath: repo,
+        changeSet,
+      });
 
-    if (result.status === "skipped") {
+      expect(result.status).toBe("skipped");
       expect(result.reason).toMatch(/Go is not available/);
+    } finally {
+      restorePath();
     }
   });
 });

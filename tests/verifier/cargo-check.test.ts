@@ -10,6 +10,7 @@ import {
   isRustFile,
 } from "../../src/verifier/cargo-check.js";
 import type { ChangeSet } from "../../src/core/types/index.js";
+import { hideExternalTools } from "../helpers/hide-tools.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -130,13 +131,17 @@ describe("CargoCheckVerifier", () => {
       { path: "main.rs", changeType: "modified" },
     ]);
 
-    const result = await verifier.run({
-      repositoryPath: repo,
-      changeSet,
-    });
+    const restorePath = hideExternalTools();
+    try {
+      const result = await verifier.run({
+        repositoryPath: repo,
+        changeSet,
+      });
 
-    if (result.status === "skipped") {
+      expect(result.status).toBe("skipped");
       expect(result.reason).toMatch(/Cargo is not available/);
+    } finally {
+      restorePath();
     }
   });
 });

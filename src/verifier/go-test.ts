@@ -1,7 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
 import { stat } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
@@ -174,8 +172,6 @@ export class GoTestVerifier implements Verifier {
       return finish("skipped", [], "Go is not available in this environment.");
     }
 
-    const tempDir = mkdtempSync(path.join(tmpdir(), "ai-verify-go-test-"));
-
     try {
       await execFileAsync("go", ["test", "-json", "./..."], {
         cwd: context.repositoryPath,
@@ -197,12 +193,6 @@ export class GoTestVerifier implements Verifier {
         findings = failures.map((failure, index) =>
           toFinding(failure, context.repositoryPath, index),
         );
-      }
-
-      try {
-        rmSync(tempDir, { recursive: true, force: true });
-      } catch {
-        // Ignore cleanup errors
       }
 
       if (findings.length > 0) {

@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { PipAuditVerifier } from "../../src/verifier/pip-audit.js";
 import type { ChangeSet } from "../../src/core/types/index.js";
+import { hideExternalTools } from "../helpers/hide-tools.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -87,13 +88,17 @@ describe("PipAuditVerifier", () => {
       { path: "requirements.txt", changeType: "modified" },
     ]);
 
-    const result = await verifier.run({
-      repositoryPath: repo,
-      changeSet,
-    });
+    const restorePath = hideExternalTools();
+    try {
+      const result = await verifier.run({
+        repositoryPath: repo,
+        changeSet,
+      });
 
-    if (result.status === "skipped") {
+      expect(result.status).toBe("skipped");
       expect(result.reason).toMatch(/pip-audit is not available/);
+    } finally {
+      restorePath();
     }
   });
 });
