@@ -11,32 +11,68 @@
     "type": "git",
     "url": "https://github.com/muhammadfisabilillah/ai-verify"
   },
-  "categories": ["Programming Languages"],
+  "categories": ["Linters"],
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "aiVerify.run",
-        "title": "AI Verify: Run Verification"
+        "command": "aiVerify.verifyProject",
+        "title": "AI Verify: Verify Project"
+      },
+      {
+        "command": "aiVerify.verifyFile",
+        "title": "AI Verify: Verify Current File"
       }
     ],
     "menus": {
       "explorer/context": [
         {
-          "when": "resourceType == file",
-          "command": "aiVerify.run",
-          "title": "AI Verify: Verify Changes"
+          "command": "aiVerify.verifyProject",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "aiVerify.verifyFile",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "aiVerify.verifyProject"
+        },
+        {
+          "command": "aiVerify.verifyFile"
         }
       ]
+    },
+    "configuration": {
+      "title": "AI Verify",
+      "properties": {
+        "aiVerify.binaryPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the ai-verify binary. Empty = use ai-verify on PATH, else npx with aiVerify.packageSpec."
+        },
+        "aiVerify.packageSpec": {
+          "type": "string",
+          "default": "@fisaabil_/ai-verify@latest",
+          "description": "npm package spec used when ai-verify is not on PATH (e.g. @fisaabil_/ai-verify@0.2.1)."
+        },
+        "aiVerify.extraArgs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Extra CLI flags appended to every run (e.g. --ref)."
+        }
+      }
     }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc",
-    "watch": "tsc watch",
-    "pretest": "npm run compile",
-    "test": "vscode-test"
+    "watch": "tsc --watch"
   },
   "devDependencies": {
     "@types/vscode": "^1.80.0",
