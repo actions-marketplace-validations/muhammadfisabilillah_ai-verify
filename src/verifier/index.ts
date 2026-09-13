@@ -15,5 +15,7 @@ export { CargoTestVerifier } from "./cargo-test.js";
 export { JavacVerifier } from "./javac.js";
 export { selectVerifiers } from "./select.js";
 export { deriveVerdict } from "./verdict.js";
+export { suggestFix, suggestFixes } from "./fixer.js";
+export type { FixSuggestion } from "./fixer.js";
 export type { VerifierSelector } from "./select.js";
 export type { Verifier, VerifierContext } from "./verifier.js";
