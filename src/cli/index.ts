@@ -17,10 +17,12 @@ import {
   printVerificationReport,
 } from "./report.js";
 import { getVersion } from "./version.js";
+import { installHook, uninstallHook } from "./hooks.js";
 
 export interface RunOptions {
   json?: boolean;
   history?: boolean;
+  refRange?: string | undefined;
 }
 
 export interface CliArgs {
@@ -29,6 +31,9 @@ export interface CliArgs {
   help: boolean;
   version: boolean;
   history: boolean;
+  ref?: string | undefined;
+  installHook: boolean;
+  uninstallHook: boolean;
 }
 
 export function parseArgs(argv: string[]): CliArgs {
@@ -37,8 +42,15 @@ export function parseArgs(argv: string[]): CliArgs {
   let help = false;
   let version = false;
   let history = true;
+  let ref: string | undefined;
+  let installHook = false;
+  let uninstallHook = false;
 
-  for (const arg of argv.slice(2)) {
+  const args = argv.slice(2);
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i] as string;
+
     if (arg === "--json") {
       json = true;
     } else if (arg === "--no-history") {
@@ -47,6 +59,27 @@ export function parseArgs(argv: string[]): CliArgs {
       help = true;
     } else if (arg === "--version" || arg === "-V") {
       version = true;
+    } else if (arg === "--install-hook") {
+      installHook = true;
+    } else if (arg === "--uninstall-hook") {
+      uninstallHook = true;
+    } else if (arg === "--ref") {
+      const value = args[i + 1];
+      i++;
+
+      if (value === undefined || value.startsWith("-")) {
+        throw new Error("Missing value for --ref: expected a git range.");
+      }
+
+      ref = value;
+    } else if (arg.startsWith("--ref=")) {
+      const value = arg.slice("--ref=".length);
+
+      if (!value || value.startsWith("-")) {
+        throw new Error("Missing value for --ref: expected a git range.");
+      }
+
+      ref = value;
     } else if (!arg.startsWith("-") && repositoryPath === ".") {
       repositoryPath = arg;
     } else if (!arg.startsWith("-")) {
@@ -56,7 +89,16 @@ export function parseArgs(argv: string[]): CliArgs {
     }
   }
 
-  return { repositoryPath, json, help, version, history };
+  return {
+    repositoryPath,
+    json,
+    help,
+    version,
+    history,
+    ref,
+    installHook,
+    uninstallHook,
+  };
 }
 
 export function printHelp(): void {
@@ -69,7 +111,11 @@ Arguments:
 
 Options:
   --json        Machine-readable JSON output ({ changeSet, risk, verification, verdict })
+  --ref <range> Verify a committed git range (e.g. HEAD~1..HEAD) instead of
+                uncommitted changes
   --no-history  Skip recording this run to the local history
+  --install-hook    Install ai-verify as a git pre-commit hook
+  --uninstall-hook  Remove the ai-verify pre-commit hook
   -h, --help    Show this help
   -V, --version Show version
 
@@ -80,6 +126,8 @@ No file contents are recorded. Use --no-history to opt out.
 Examples:
   ai-verify .
   ai-verify /path/to/repo --json
+  ai-verify . --ref HEAD~1..HEAD
+  ai-verify --install-hook
   ai-verify --help`);
 }
 
@@ -87,10 +135,18 @@ export async function run(
   repositoryPath: string,
   options?: RunOptions,
 ): Promise<number> {
-  const request = {
+  const request: {
+    repositoryPath: string;
+    includeUncommittedChanges: boolean;
+    refRange?: string | undefined;
+  } = {
     repositoryPath: path.resolve(repositoryPath),
     includeUncommittedChanges: true,
   };
+
+  if (options?.refRange !== undefined) {
+    request.refRange = options.refRange;
+  }
 
   const analyzer = new GitAnalyzer();
   const riskEngine = new RiskEngineV01();
@@ -119,7 +175,7 @@ export async function run(
   }
 
   printBanner(getVersion());
-  printChangeReport(changeSet);
+  printChangeReport(changeSet, request.refRange);
   printRiskReport(risk);
   printVerificationReport(verification);
 
@@ -139,7 +195,53 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     return 0;
   }
 
-  return run(args.repositoryPath, { json: args.json, history: args.history });
+  if (args.installHook) {
+    const repoPath =
+      args.repositoryPath === "." ? process.cwd() : args.repositoryPath;
+    try {
+      const result = await installHook(repoPath);
+      if (result.installed) {
+        console.log(
+          `Pre-commit hook installed${result.backedUp ? " (existing hook backed up)" : ""}.`,
+        );
+        return 0;
+      } else {
+        console.log("Pre-commit hook is already installed.");
+        return 0;
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Failed to install hook: ${message}`);
+      return 1;
+    }
+  }
+
+  if (args.uninstallHook) {
+    const repoPath =
+      args.repositoryPath === "." ? process.cwd() : args.repositoryPath;
+    try {
+      const result = await uninstallHook(repoPath);
+      if (result.removed) {
+        console.log(
+          `Pre-commit hook removed${result.restored ? " (backup restored)" : ""}.`,
+        );
+        return 0;
+      } else {
+        console.log("No ai-verify pre-commit hook found.");
+        return 0;
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Failed to uninstall hook: ${message}`);
+      return 1;
+    }
+  }
+
+  return run(args.repositoryPath, {
+    json: args.json,
+    history: args.history,
+    refRange: args.ref,
+  });
 }
 
 const entryPath = fileURLToPath(import.meta.url);

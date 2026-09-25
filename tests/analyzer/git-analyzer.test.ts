@@ -314,4 +314,44 @@ describe("GitAnalyzer", () => {
 
     expect(changeSet.files).toEqual([]);
   });
+
+  it("returns committed range diff ignoring uncommitted changes", async () => {
+    const repo = await initRepo();
+    write(repo, "a.txt", "v1\n");
+    await commitAll(repo, "first");
+    write(repo, "a.txt", "v2\n");
+    await commitAll(repo, "second");
+    write(repo, "a.txt", "v3-uncommitted\n");
+
+    const analyzer = new GitAnalyzer();
+    const changeSet = await analyzer.analyze({
+      repositoryPath: repo,
+      includeUncommittedChanges: true,
+      refRange: "HEAD~1..HEAD",
+    });
+
+    expect(changeSet.files).toHaveLength(1);
+    expect(changeSet.files[0]).toMatchObject({
+      path: "a.txt",
+      changeType: "modified",
+      additions: 1,
+      deletions: 1,
+    });
+  });
+
+  it("rejects option-like refRange", async () => {
+    const repo = await initRepo();
+    write(repo, "a.txt", "v1\n");
+    await commitAll(repo, "first");
+
+    const analyzer = new GitAnalyzer();
+
+    await expect(
+      analyzer.analyze({
+        repositoryPath: repo,
+        includeUncommittedChanges: true,
+        refRange: "--help",
+      }),
+    ).rejects.toThrow(/Invalid --ref/);
+  });
 });

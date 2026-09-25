@@ -21,6 +21,7 @@ runs only the checks that fit — then reports a clear `PASS` / `REVIEW` /
 - [Verdicts and exit codes](#verdicts-and-exit-codes)
 - [Output](#output)
 - [GitHub Action](#github-action)
+- [MCP server](#mcp-server)
 - [Install](#install)
 - [Requirements](#requirements)
 - [From source](#from-source)
@@ -40,6 +41,13 @@ npx @fisaabil_/ai-verify@latest /path/to/your/repo
 
 You'll get a `PASS`, `REVIEW`, or `BLOCK` verdict in seconds. See
 [Install](#install) for the other ways to run it.
+
+By default it verifies **uncommitted changes** vs `HEAD`. To verify
+commits you already pushed, point it at a committed range instead:
+
+```bash
+npx @fisaabil_/ai-verify@latest /path/to/your/repo --ref HEAD~1..HEAD
+```
 
 ## How it works
 
@@ -159,6 +167,31 @@ conditional follow-ups:
 | Output    | Meaning                                                                      |
 | --------- | ---------------------------------------------------------------------------- |
 | `verdict` | `PASS`, `REVIEW`, or `BLOCK` (`UNKNOWN` fails the job — never a silent pass) |
+
+## MCP server
+
+AI agents can call the same verification through MCP (local stdio, no
+network). Build from source, then point any stdio-capable MCP client at
+the server entry:
+
+```bash
+npm run build
+node dist/mcp/server.js
+```
+
+It exposes two tools, `verify` and `verify-and-fix`:
+
+| Input            | Default | Meaning                                                     |
+| ---------------- | ------- | ----------------------------------------------------------- |
+| `repositoryPath` | `.`     | Repository path to verify                                   |
+| `refRange`       | _(empty)_ | Committed range (e.g. `HEAD~1..HEAD`); empty = uncommitted |
+| `noHistory`      | `false` | Skip recording this run to the local history                |
+
+It returns `{ changeSet, risk, verification, verdict }` — the same shape
+as `--json`. `verify-and-fix` adds `suggestions` (one fix suggestion per
+finding, same order; `autoFixable` entries carry a command the agent may
+run itself — the server never edits code). This closes the agent loop:
+`generate → verify → fix → verify again`.
 
 ## Install
 

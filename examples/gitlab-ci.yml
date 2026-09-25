@@ -1,0 +1,43 @@
+# AI Verify GitLab CI/CD Template
+#
+# Add this to your .gitlab-ci.yml or include it as a template.
+# See docs/gitlab-setup.md for full documentation.
+#
+# Requirements:
+#   - Node.js >= 18 available in the runner
+#   - Git repository with changes to verify
+
+stages:
+  - verify
+
+ai-verify:
+  stage: verify
+  image: node:18
+  variables:
+    AI_VERIFY_VERSION: "latest"
+  script:
+    - |
+      set -uo pipefail
+      out="$CI_PROJECT_DIR/ai-verify.json"
+      npx --yes "@fisaabil_/ai-verify@${AI_VERIFY_VERSION}" "$CI_PROJECT_DIR" --json > "$out" || code=$?
+      verdict=$(node -e "const fs=require('fs');try{console.log(JSON.parse(fs.readFileSync('$out','utf8')).verdict)}catch{console.log('UNKNOWN')}")
+      echo "AI Verify verdict: $verdict"
+      cat "$out"
+      if [ "$verdict" = "UNKNOWN" ]; then
+        echo "AI Verify produced no readable report — failing instead of passing silently."
+        exit 1
+      fi
+      exit ${code:-0}
+  artifacts:
+    when: always
+    paths:
+      - ai-verify.json
+    reports:
+      # GitLab can parse test reports, but we use a custom format
+      # The verdict is available in the job output
+      dotenv: ai-verify.env
+    expire_in: 30 days
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  allow_failure: false

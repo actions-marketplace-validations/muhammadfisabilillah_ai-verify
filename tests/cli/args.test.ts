@@ -65,6 +65,8 @@ describe("parseArgs", () => {
       help: false,
       version: false,
       history: true,
+      installHook: false,
+      uninstallHook: false,
     });
   });
 
@@ -98,6 +100,36 @@ describe("parseArgs", () => {
     expect(() => parseArgs(["node", "ai-verify", "--yaml"])).toThrow(
       /Unknown option/,
     );
+  });
+
+  it("parses --ref with separate and equals values", () => {
+    expect(parseArgs(["node", "ai-verify", "--ref", "HEAD~1..HEAD"]).ref).toBe(
+      "HEAD~1..HEAD",
+    );
+    expect(parseArgs(["node", "ai-verify", "--ref=HEAD~1..HEAD"]).ref).toBe(
+      "HEAD~1..HEAD",
+    );
+  });
+
+  it("throws on missing --ref value", () => {
+    expect(() => parseArgs(["node", "ai-verify", "--ref"])).toThrow(
+      /Missing value for --ref/,
+    );
+    expect(() => parseArgs(["node", "ai-verify", "--ref", "--json"])).toThrow(
+      /Missing value for --ref/,
+    );
+  });
+
+  it("parses --install-hook flag", () => {
+    expect(parseArgs(["node", "ai-verify", "--install-hook"]).installHook).toBe(
+      true,
+    );
+  });
+
+  it("parses --uninstall-hook flag", () => {
+    expect(
+      parseArgs(["node", "ai-verify", "--uninstall-hook"]).uninstallHook,
+    ).toBe(true);
   });
 });
 
@@ -184,5 +216,26 @@ describe("run --json", () => {
     });
 
     expect(() => readFileSync(historyFile, "utf8")).toThrow();
+  });
+
+  it("verifies a committed range ignoring uncommitted changes", async () => {
+    isolateHistory();
+    const repo = await initRepo();
+    writeFileSync(path.join(repo, "a.txt"), "v1\n");
+    await git(repo, ["add", "-A"]);
+    await git(repo, ["commit", "-qm", "first"]);
+    writeFileSync(path.join(repo, "a.txt"), "v2\n");
+    await git(repo, ["add", "-A"]);
+    await git(repo, ["commit", "-qm", "second"]);
+    writeFileSync(path.join(repo, "a.txt"), "v3-uncommitted\n");
+
+    let code = -1;
+    const lines = await captureLog(async () => {
+      code = await run(repo, { refRange: "HEAD~1..HEAD" });
+    });
+
+    expect(code).toBe(0);
+    expect(lines.join("\n")).toMatch(/Range\s+:\s+HEAD~1\.\.HEAD/);
+    expect(lines.join("\n")).toMatch(/a\.txt/);
   });
 });

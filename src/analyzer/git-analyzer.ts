@@ -28,17 +28,20 @@ export class GitAnalyzer implements Analyzer {
     await this.assertGitRepository(repositoryPath);
 
     const hasHead = await this.hasCommitHistory(repositoryPath);
+    const refRange = this.normalizeRefRange(request.refRange);
 
     const changes = await this.getGitChanges(
       repositoryPath,
       request.includeUncommittedChanges,
       hasHead,
+      refRange,
     );
 
     const stats = await this.getBatchStats(
       repositoryPath,
       request.includeUncommittedChanges,
       hasHead,
+      refRange,
     );
 
     const files: FileChange[] = [];
@@ -50,6 +53,7 @@ export class GitAnalyzer implements Analyzer {
         request.includeUncommittedChanges,
         hasHead,
         stats,
+        refRange,
       );
 
       files.push(fileChange);
@@ -86,11 +90,42 @@ export class GitAnalyzer implements Analyzer {
     }
   }
 
+  private normalizeRefRange(refRange: string | undefined): string | undefined {
+    if (refRange === undefined) {
+      return undefined;
+    }
+
+    const trimmed = refRange.trim();
+
+    if (!trimmed) {
+      throw new Error("Invalid --ref: expected a non-empty git range.");
+    }
+
+    if (trimmed.startsWith("-") || trimmed.includes("\0")) {
+      throw new Error(`Invalid --ref: refusing option-like range: ${trimmed}`);
+    }
+
+    return trimmed;
+  }
+
   private async getGitChanges(
     repositoryPath: string,
     includeUncommittedChanges: boolean,
     hasHead: boolean,
+    refRange: string | undefined,
   ): Promise<GitChange[]> {
+    if (refRange !== undefined) {
+      const { stdout } = await execFileAsync(
+        "git",
+        ["diff", refRange, "--name-status", "-M"],
+        {
+          cwd: repositoryPath,
+        },
+      );
+
+      return this.parseNameStatus(stdout);
+    }
+
     if (!includeUncommittedChanges && !hasHead) {
       return [];
     }
@@ -220,6 +255,7 @@ export class GitAnalyzer implements Analyzer {
     includeUncommittedChanges: boolean,
     hasHead: boolean,
     batch: Map<string, { additions: number; deletions: number }>,
+    refRange: string | undefined,
   ): Promise<FileChange> {
     const stats = await this.getFileStats(
       repositoryPath,
@@ -227,6 +263,7 @@ export class GitAnalyzer implements Analyzer {
       includeUncommittedChanges,
       hasHead,
       batch,
+      refRange,
     );
 
     const language = detectLanguage(change.path);
@@ -249,7 +286,12 @@ export class GitAnalyzer implements Analyzer {
   private diffBaseArgs(
     includeUncommittedChanges: boolean,
     hasHead: boolean,
+    refRange: string | undefined,
   ): string[] {
+    if (refRange !== undefined) {
+      return ["diff", refRange];
+    }
+
     if (!includeUncommittedChanges) {
       return ["diff", "HEAD~1", "HEAD"];
     }
@@ -261,10 +303,11 @@ export class GitAnalyzer implements Analyzer {
     repositoryPath: string,
     includeUncommittedChanges: boolean,
     hasHead: boolean,
+    refRange: string | undefined,
   ): Promise<Map<string, { additions: number; deletions: number }>> {
     const stats = new Map<string, { additions: number; deletions: number }>();
 
-    if (!includeUncommittedChanges && !hasHead) {
+    if (refRange === undefined && !includeUncommittedChanges && !hasHead) {
       return stats;
     }
 
@@ -272,7 +315,7 @@ export class GitAnalyzer implements Analyzer {
       const { stdout } = await execFileAsync(
         "git",
         [
-          ...this.diffBaseArgs(includeUncommittedChanges, hasHead),
+          ...this.diffBaseArgs(includeUncommittedChanges, hasHead, refRange),
           "--numstat",
           "-M",
         ],
@@ -357,6 +400,7 @@ export class GitAnalyzer implements Analyzer {
     includeUncommittedChanges: boolean,
     hasHead: boolean,
     batch: Map<string, { additions: number; deletions: number }>,
+    refRange: string | undefined,
   ): Promise<{
     additions: number;
     deletions: number;
@@ -379,7 +423,7 @@ export class GitAnalyzer implements Analyzer {
       const { stdout } = await execFileAsync(
         "git",
         [
-          ...this.diffBaseArgs(includeUncommittedChanges, hasHead),
+          ...this.diffBaseArgs(includeUncommittedChanges, hasHead, refRange),
           "--numstat",
           "-M",
           "--",

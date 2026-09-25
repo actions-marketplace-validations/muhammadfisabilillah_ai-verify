@@ -32,7 +32,8 @@
     "node": ">=18"
   },
   "bin": {
-    "ai-verify": "dist/cli/index.js"
+    "ai-verify": "dist/cli/index.js",
+    "ai-verify-mcp": "dist/mcp/server.js"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",
@@ -41,5 +42,9 @@
     "tsx": "^4.23.13",
     "typescript": "^7.0.2",
     "vitest": "^5.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^4.6.1"
   }
 }

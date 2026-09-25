@@ -35,10 +35,18 @@ export function hasFailed(result: VerificationResult): boolean {
   return deriveVerdict(result) !== "PASS";
 }
 
-export function printChangeReport(changeSet: ChangeSet): void {
+export function printChangeReport(
+  changeSet: ChangeSet,
+  refRange?: string,
+): void {
   console.log(`Files changed : ${changeSet.files.length}`);
   console.log(`Additions     : +${changeSet.totalAdditions}`);
   console.log(`Deletions     : -${changeSet.totalDeletions}`);
+
+  if (refRange !== undefined) {
+    console.log(`Range         : ${refRange}`);
+  }
+
   console.log("");
 
   if (changeSet.files.length === 0) {
